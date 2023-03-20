@@ -14,3 +14,8 @@ The idea behind dxrx is to have a form of alerting when there is a propagation "
 Both files are best run as CRON jobs.  I set dxrx file to run every 5 minutes.  To prevent emails being sent every 5 minutes once triggered, the script writes
 a timestamp to a text file as each email is sent.  The script reads that time and does not send another email if the time threshold has not been reached (I set
 every 30 minutes).
+
+Email is set up to run through a gmail account using an app password.  See - https://support.google.com/mail/answer/185833?hl=en-GB for further information on this.
+email could easily be set up using other providers.
+
+
