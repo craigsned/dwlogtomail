@@ -18,4 +18,9 @@ every 30 minutes).
 Email is set up to run through a gmail account using an app password.  See - https://support.google.com/mail/answer/185833?hl=en-GB for further information on this.
 email could easily be set up using other providers.
 
+Pre-requisites
+email account set up to send output
+path to Direwolf log file is known
+a text file is created, containing at least single timestamp in the required format to prevent crash of dxrx on first run.  (I need to code adding a new line if the text file is empty - currently I'm fixing this with a separate code that runs once a day at midnight to clear the file (to prevent creating a large file) and writing a new timestamp)
+
 
