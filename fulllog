@@ -1,0 +1,89 @@
+#Script to parse Direwolf APRS log, calculate distance to source
+#and output to email.
+#Written by Craig Snedden MM0NBW
+#Edit details where required for your setup
+#Set RX station QTH as entered in Direwolf.conf
+#Set path to Direwolf log
+#Set lat and long as per QTH to deal with stations with no location info
+#Set info in send message via gmail
+#Set email recipients and email account from gmail - include app password
+
+if __name__ == "__main__":
+    import smtplib
+    from smtplib import SMTP
+    from email.message import EmailMessage
+    from email.mime.text import MIMEText
+    from email.mime.application import MIMEApplication
+    from email.mime.multipart import MIMEMultipart
+    import sys
+    import os.path
+    import datetime
+    import time
+    import csv
+    import pandas as pd
+    import geopy.distance
+
+#set date and time    
+today = datetime.date.today().strftime('%Y-%m-%d')
+t = time.localtime()
+current_time = time.strftime("%H:%M:%S", t)
+
+#set RX station QTH
+qth = '56.055167, -2.709333'
+
+#Check file exists
+#Set path - do not alter /'+today+' bit
+path = '/var/log/direwolf/'+today+'.log'
+
+#-- get this bit working so that it doesn't crash if no file found
+#check_file = os.path.exists(path)
+#check_file == False
+#sys.exit()
+
+#read direwolf log file
+data = pd.read_csv(path)
+
+#Deal with log entries with no location
+#lat and long correspond with rx qth = 0 distance
+data['latitude'].fillna("56.055167", inplace = True)
+data['longitude'].fillna("-2.709333", inplace = True)
+
+#Calculate distance in miles
+data.round({'latitude' : 6, 'longitude' : 6})
+
+def distancer(row):
+    coords_1 = qth
+    coords_2 = (row['latitude'], row['longitude'])
+    return geopy.distance.geodesic(coords_1, coords_2).mi
+    
+data['distance'] = data.apply(distancer, axis=1)
+data['distance'] = data['distance'].astype(float).round(2)
+rxdata = (data.loc[:,["isotime","source","heard","comment","distance"]])
+
+#build email
+recipients = ['EmailAccount@email.com','EmailAccount@email.com']
+emaillist = [elem.strip().split(',') for elem in recipients]
+msg = MIMEMultipart()
+msg['Subject'] = "APRS RX report"
+msg['From'] = 'EmailAccount@gmail.com'
+
+html = """\
+<html>
+    <head></head>
+    <body>Stations heard by (some station) since 00:00 today
+    <p>
+        {0}
+    </p>
+    <p>Report script by MM0NBW</p>
+    </body>
+</html>
+""".format(rxdata.to_html())
+
+part1 = MIMEText(html, 'html')
+msg.attach(part1)
+
+#Send message via gmail SMTP
+server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+server.login("EmailAccount@gmail.com", "app_password")
+server.sendmail(msg['From'], emaillist , msg.as_string())
+server.quit()
