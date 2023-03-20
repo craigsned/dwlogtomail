@@ -2,6 +2,10 @@
 Direwolf APRS log to email
 Project to take Direwolf APRS logs and send to email.
 
+This is my first foray into any type of scripting.  There may be issues in the way this is coded and probably not the most efficient code.
+
+Descrition of the files;
+
 fulllog calculates distances to the source station, append distance and output to html formatted email.
 
 dxrx is based on fullog, but additionally filters the result by distance and sends the filter results to email.
