@@ -31,17 +31,16 @@ current_time = time.strftime("%H:%M:%S", t)
 #set RX station QTH
 qth = '56.055167, -2.709333'
 
-#Check file exists
+#Set path and check file exists. If not exist exit
 #Set path - do not alter /'+today+' bit
 path = '/var/log/direwolf/'+today+'.log'
 
-#-- get this bit working so that it doesn't crash if no file found
-#check_file = os.path.exists(path)
-#check_file == False
-#sys.exit()
+if os.path.exists(path) == False:
+    sys.exit()
+else:
 
 #read direwolf log file
-data = pd.read_csv(path)
+    data = pd.read_csv(path)
 
 #Deal with log entries with no location
 #lat and long correspond with rx qth = 0 distance
