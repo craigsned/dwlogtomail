@@ -92,7 +92,7 @@ if delta.total_seconds() < 1800:
     sys.exit
 else:
         
-#error = "email sent"
+#log email sent
     log = maillogp
     with open(log, 'a') as logfile:
         logfile.write(sttime + '\n')
