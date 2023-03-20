@@ -28,4 +28,43 @@ A text file, containing at least single timestamp in the required format to prev
 
 Set QTH to be the same as the Direwolf.conf entry
 
+Logic Flow
+
+Set data and time
+
+Set APRS receiver location - QTH
+
+Set distance filter (for dxrx script)
+
+Set path to Direwolf log file for today
+
+Set path to mail log file
+
+If Direwolf log file does not exist - exit
+
+Read the Direwolf log file into a CSV Panda array
+
+Deal with log entries with no location data by inserting receiver location (QTH) into lat and log fields in the Panda array
+
+Calculate the distance from receiver station (QTH) to source station and insert into new column in Panda array
+
+Filter the Panda array according to distance filter (for dxrx script)
+
+If filter results return no rows (i.e. nothing to report) exit (for dxrx script)
+
+Check the last time an email was sent (for dxrx script) - if less than (time) quit - this ensures emails are not continuously sent as the dxrx script runs in CRON.
+The email log file must have an entry or this will cause the script to fail.  I set the entry for the log file using a separate script to clean up the file once per day - remove all entries, then append current timestamp
+
+Set the content for email from relevant fields in the Panda array
+
+Log current time in the email log
+
+Build email
+
+Send email
+
+
+
+
+
 Craig - MM0NBW
