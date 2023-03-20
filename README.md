@@ -23,4 +23,4 @@ email account set up to send output
 path to Direwolf log file is known
 a text file is created, containing at least single timestamp in the required format to prevent crash of dxrx on first run.  (I need to code adding a new line if the text file is empty - currently I'm fixing this with a separate code that runs once a day at midnight to clear the file (to prevent creating a large file) and writing a new timestamp)
 
-
+Craig - MM0NBW
