@@ -59,12 +59,10 @@ data['longitude'].fillna("-2.709333", inplace = True)
 
 #Calculate distance in miles
 data.round({'latitude' : 6, 'longitude' : 6})
-
 def distancer(row):
     coords_1 = qth
     coords_2 = (row['latitude'], row['longitude'])
     return geopy.distance.geodesic(coords_1, coords_2).mi
-    
 data['distance'] = data.apply(distancer, axis=1)
 data['distance'] = data['distance'].astype(float).round(2)
 #print selection from logfile to screen
