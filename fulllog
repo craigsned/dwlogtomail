@@ -4,9 +4,9 @@
 #Edit details where required for your setup
 #Set RX station QTH as entered in Direwolf.conf
 #Set path to Direwolf log
-#Set lat and long as per QTH to deal with stations with no location info
-#Set info in send message via gmail
-#Set email recipients and email account from gmail - include app password
+#Set lat and long same as QTH to deal with stations with no location info
+#Set required info in send message via gmail
+#Set email recipients and email account from gmail - include app password set in gmail.
 
 if __name__ == "__main__":
     import smtplib
@@ -50,12 +50,10 @@ data['longitude'].fillna("-2.709333", inplace = True)
 
 #Calculate distance in miles
 data.round({'latitude' : 6, 'longitude' : 6})
-
 def distancer(row):
     coords_1 = qth
     coords_2 = (row['latitude'], row['longitude'])
     return geopy.distance.geodesic(coords_1, coords_2).mi
-    
 data['distance'] = data.apply(distancer, axis=1)
 data['distance'] = data['distance'].astype(float).round(2)
 rxdata = (data.loc[:,["isotime","source","heard","comment","distance"]])
