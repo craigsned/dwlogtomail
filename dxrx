@@ -1,0 +1,130 @@
+#Script to parse Direwolf APRS log, calculate distance to source
+#filter by distance and output to email if distance > set.
+#Send rate is throttled by checking a text file.
+#Written by Craig Snedden MM0NBW
+#Edit details where required for your setup
+#Set RX station QTH as entered in Direwolf.conf
+#Set path to Direwolf log
+#Set path to email text file
+#Set lat and long same as QTH to deal with stations with no location info
+#Set RX distance for filter
+#Set email throttle time in seconds
+#Set required info in send message via gmail
+#Set email recipients and email account from gmail - include app password set in gmail.
+
+if __name__ == "__main__":
+    import smtplib
+    from smtplib import SMTP
+    from email.message import EmailMessage
+    from email.mime.text import MIMEText
+    from email.mime.application import MIMEApplication
+    from email.mime.multipart import MIMEMultipart
+    import sys
+    import os.path
+    import datetime
+    import time
+    import csv
+    import pandas as pd
+    import geopy.distance
+
+#set date and time    
+today = datetime.date.today().strftime('%Y-%m-%d')
+t = time.localtime()
+current_time = time.strftime("%H:%M:%S", t)
+ts = time.time()
+sttime = datetime.datetime.fromtimestamp(ts).strftime('%Y%m%d_%H:%M:%S')
+
+#set RX station QTH
+qth = '56.055167, -2.709333'
+
+#Check file exists
+#Set path
+path = '/var/log/direwolf/'+today+'.log'
+maillogp = '/home/pi/Documents/emaillog.txt'
+
+#-- get this bit working so that it doesn't crash if no file found
+#check_file = os.path.exists(path)
+#check_file == False
+#sys.exit()
+
+#read direwolf log file
+data = pd.read_csv(path)
+
+#Deal with log entries with no location
+#lat and long correspond with rx qth = 0 distance
+data['latitude'].fillna("56.055167", inplace = True)
+data['longitude'].fillna("-2.709333", inplace = True)
+
+#Calculate distance in miles
+data.round({'latitude' : 6, 'longitude' : 6})
+
+def distancer(row):
+    coords_1 = qth
+    coords_2 = (row['latitude'], row['longitude'])
+    return geopy.distance.geodesic(coords_1, coords_2).mi
+    
+data['distance'] = data.apply(distancer, axis=1)
+data['distance'] = data['distance'].astype(float).round(2)
+#print selection from logfile to screen
+#print(data.loc[:,["isotime","source","heard"]])
+
+#set content for email filtered by distance and trigger email
+rxdata = (data.loc[:,["isotime","source","heard","comment","distance"]])
+rxdistancef1 = rxdata['distance']>75
+rxdistance = rxdata[rxdistancef1]
+
+if rxdistance.empty:
+    sys.exit()
+else:
+
+#throttle send rate
+    with open(maillogp, 'r') as f:
+        lines = f.read().splitlines()
+last_line = lines[-1]
+t1 = datetime.datetime.strptime(sttime, '%Y%m%d_%H:%M:%S')
+t2 = datetime.datetime.strptime(last_line, '%Y%m%d_%H:%M:%S')
+delta = t1 - t2
+
+#set resend time in seconds - 1800 = 30 mins
+if delta.total_seconds() < 1800:
+    #print("rate throttled")
+    sys.exit
+else:
+        
+#error = "email sent"
+    log = maillogp
+    with open(log, 'a') as logfile:
+        logfile.write(sttime + '\n')
+            
+#build email
+    recipients = ['admin@dxnet.co.uk', 'mm0ccc@gmx.co.uk']
+    emaillist = [elem.strip().split(',') for elem in recipients]
+    msg = MIMEMultipart()
+    msg['Subject'] = "MB7UEL APRS DX report"
+    msg['From'] = 'mb7uel@gmail.com'
+
+    html = """\
+        <html>
+            <head></head>
+                <body>DX stations heard by MB7UEL since 00:00 today.
+                <br>Distance > 52 miles</br>
+                <p><a href="http://mb7uel.ddns.net/aprs/summary.php">MB7UEL Dashboard</a>
+                </p>
+                <p>Note that distance shown is distance from source station, not heard station.<br>
+                Intermediate relays do not append location information to allow distance calculation.</p>
+                <p>
+                    {0}
+                </p>
+                <p>Report script by MM0NBW</p>
+                </body>
+            </html>
+            """.format(rxdistance.to_html())
+
+    part1 = MIMEText(html, 'html')
+    msg.attach(part1)
+
+#Send message via gmail SMTP
+    server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+    server.login("mb7uel@gmail.com", "mvieoqyffhlwewbr")
+    server.sendmail(msg['From'], emaillist , msg.as_string())
+    server.quit()
