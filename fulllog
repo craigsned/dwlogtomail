@@ -58,12 +58,12 @@ data['distance'] = data.apply(distancer, axis=1)
 data['distance'] = data['distance'].astype(float).round(2)
 rxdata = (data.loc[:,["isotime","source","heard","comment","distance"]])
 
-#build email
-recipients = ['EmailAccount@email.com','EmailAccount@email.com']
+#build email content
+recipients = ['EmailAddr@email.com','EmailAddr2@email.com']
 emaillist = [elem.strip().split(',') for elem in recipients]
 msg = MIMEMultipart()
 msg['Subject'] = "APRS RX report"
-msg['From'] = 'EmailAccount@gmail.com'
+msg['From'] = 'EmailAddr@gmail.com'
 
 html = """\
 <html>
@@ -82,6 +82,6 @@ msg.attach(part1)
 
 #Send message via gmail SMTP
 server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
-server.login("EmailAccount@gmail.com", "app_password")
+server.login("EmailAddr@gmail.com", "app_password")
 server.sendmail(msg['From'], emaillist , msg.as_string())
 server.quit()
