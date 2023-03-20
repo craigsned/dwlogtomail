@@ -78,6 +78,7 @@ if rxdistance.empty:
 else:
 
 #throttle send rate
+#note that this will fail if the log file is blank
     with open(maillogp, 'r') as f:
         lines = f.read().splitlines()
 last_line = lines[-1]
