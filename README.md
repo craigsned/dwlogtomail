@@ -30,7 +30,7 @@ Set QTH to be the same as the Direwolf.conf entry
 
 Logic Flow
 
-Set data and time
+Set date and time - required to find today's log file
 
 Set APRS receiver location - QTH
 
@@ -38,9 +38,9 @@ Set distance filter (for dxrx script)
 
 Set path to Direwolf log file for today
 
-Set path to mail log file
+Set path to mail log file (for dxrx script)
 
-If Direwolf log file does not exist - exit
+  If Direwolf log file does not exist - exit
 
 Read the Direwolf log file into a CSV Panda array
 
@@ -50,7 +50,7 @@ Calculate the distance from receiver station (QTH) to source station and insert 
 
 Filter the Panda array according to distance filter (for dxrx script)
 
-If filter results return no rows (i.e. nothing to report) exit (for dxrx script)
+  If filter results return no rows (i.e. nothing to report) exit (for dxrx script)
 
 Check the last time an email was sent (for dxrx script) - if less than (time) quit - this ensures emails are not continuously sent as the dxrx script runs in CRON.
 The email log file must have an entry or this will cause the script to fail.  I set the entry for the log file using a separate script to clean up the file once per day - remove all entries, then append current timestamp
