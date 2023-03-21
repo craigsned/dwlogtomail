@@ -22,7 +22,7 @@ Pre-requisites.
 
 Email account set up to send output.
 
-Path to Direwolf log file is known.
+Direwolf logging enabled - either command line or in direwolf.conf
 
 A text file, containing at least single timestamp in the required format to prevent crash of dxrx on first run.  (I need to code adding a new line if the text file is empty - currently I'm fixing this with a separate code that runs once a day at midnight to clear the file (to prevent creating a large file) and writing a new timestamp).
 
