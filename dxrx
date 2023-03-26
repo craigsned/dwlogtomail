@@ -1,108 +1,104 @@
-#Script to parse Direwolf APRS log, calculate distance to source
-#filter by distance and output to email if distance > set.
-#Send rate is throttled by checking a text file.
-#Written by Craig Snedden MM0NBW
-#Edit details where required for your setup
-#Set RX station QTH as entered in Direwolf.conf
-#Set path to Direwolf log
-#Set path to email text file
-#Set lat and long same as QTH to deal with stations with no location info
-#Set RX distance for filter
-#Set email throttle time in seconds
-#Set required info in send message via gmail
-#Set email recipients and email account from gmail - include app password set in gmail.
+# Script to parse Direwolf APRS log, calculate distance to source
+# filter by distance and output to email if distance > set.
+# Send rate is throttled by checking a text file.
+# Written by Craig Snedden MM0NBW
+# Edit details where required for your setup
+# Set RX station QTH as entered in Direwolf.conf
+# Set path to Direwolf log
+# Set path to email text file
+# Set lat and long same as QTH to deal with stations with no location info
+# Set RX distance for filter
+# Set email throttle time in seconds
+# Set required info in send message via gmail
+# Set email recipients and email account from gmail - include app password set in gmail.
 
 if __name__ == "__main__":
     import smtplib
-    from smtplib import SMTP
-    from email.message import EmailMessage
     from email.mime.text import MIMEText
-    from email.mime.application import MIMEApplication
     from email.mime.multipart import MIMEMultipart
     import sys
     import os.path
     import datetime
     import time
-    import csv
     import pandas as pd
     import geopy.distance
-
-#set date and time    
-today = datetime.date.today().strftime('%Y-%m-%d')
+# set date and time
+today = datetime.date.today().strftime("%Y-%m-%d")
 t = time.localtime()
 current_time = time.strftime("%H:%M:%S", t)
 ts = time.time()
-sttime = datetime.datetime.fromtimestamp(ts).strftime('%Y%m%d_%H:%M:%S')
+sttime = datetime.datetime.fromtimestamp(ts).strftime("%Y%m%d_%H:%M:%S")
 
-#set RX station QTH
-qth = '56.055167, -2.709333'
+# set RX station QTH
+qth = "56.055167, -2.709333"
 
-#set distance filter
+# set distance filter
 dist = 75
 
-#Set path according to your setup
-path = '/var/log/direwolf/'+today+'.log'
-maillogp = '/home/pi/Documents/emaillog.txt'
+# Set path according to your setup
+path = "/var/log/direwolf/" + today + ".log"
+maillogp = "/home/pi/Documents/emaillog.txt"
 
-#Check dw log file exists. If not exist exit
-if os.path.exists(path) == False:
+# Check dw log file exists. If not exist exit
+if not os.path.exists(path):
     sys.exit()
 else:
 
-#read direwolf log file
+    # read direwolf log file
     data = pd.read_csv(path)
+# Deal with log entries with no location
+# lat and long correspond with rx qth = 0 distance
+data["latitude"].fillna("56.055167", inplace=True)
+data["longitude"].fillna("-2.709333", inplace=True)
 
-#Deal with log entries with no location
-#lat and long correspond with rx qth = 0 distance
-data['latitude'].fillna("56.055167", inplace = True)
-data['longitude'].fillna("-2.709333", inplace = True)
+# Calculate distance in miles
+data.round({"latitude": 6, "longitude": 6})
 
-#Calculate distance in miles
-data.round({'latitude' : 6, 'longitude' : 6})
+
 def distancer(row):
     coords_1 = qth
-    coords_2 = (row['latitude'], row['longitude'])
+    coords_2 = (row["latitude"], row["longitude"])
     return geopy.distance.geodesic(coords_1, coords_2).mi
-data['distance'] = data.apply(distancer, axis=1)
-data['distance'] = data['distance'].astype(float).round(2)
-#print selection from logfile to screen
-#print(data.loc[:,["isotime","source","heard"]])
 
-#set content for email filtered by distance and trigger email
-rxdata = (data.loc[:,["isotime","source","heard","comment","distance"]])
-rxdistancef1 = rxdata['distance']> dist
+
+data["distance"] = data.apply(distancer, axis=1)
+data["distance"] = data["distance"].astype(float).round(2)
+# print selection from logfile to screen
+# print(data.loc[:,["isotime","source","heard"]])
+
+# set content for email filtered by distance and trigger email
+rxdata = data.loc[:, ["isotime", "source", "heard", "comment", "distance"]]
+rxdistancef1 = rxdata[" distance"] > dist
 rxdistance = rxdata[rxdistancef1]
 
 if rxdistance.empty:
     sys.exit()
 else:
 
-#throttle send rate
-#note that this will fail if the log file is blank
-    with open(maillogp, 'r') as f:
+    # throttle send rate
+    # note that this will fail if the log file is blank
+    with open(maillogp, "r") as f:
         lines = f.read().splitlines()
 last_line = lines[-1]
-t1 = datetime.datetime.strptime(sttime, '%Y%m%d_%H:%M:%S')
-t2 = datetime.datetime.strptime(last_line, '%Y%m%d_%H:%M:%S')
+t1 = datetime.datetime.strptime(sttime, "%Y%m%d_%H:%M:%S")
+t2 = datetime.datetime.strptime(last_line, "%Y%m%d_%H:%M:%S")
 delta = t1 - t2
 
-#set resend time in seconds - 1800 = 30 mins
+# set resend time in seconds - 1800 = 30 mins
 if delta.total_seconds() < 1800:
-    #print("rate throttled")
     sys.exit
 else:
-        
-#log email sent
+
+    # log email sent
     log = maillogp
-    with open(log, 'a') as logfile:
-        logfile.write(sttime + '\n')
-            
-#build email content - edit as you wish, adding callsign etc
-    recipients = ['email@email.com']
-    emaillist = [elem.strip().split(',') for elem in recipients]
+    with open(log, "a") as logfile:
+        logfile.write(sttime + "\n")
+    # build email content - edit as you wish, adding callsign etc
+    recipients = ["email@email.com"]
+    emaillist = [elem.strip().split(",") for elem in recipients]
     msg = MIMEMultipart()
-    msg['Subject'] = "APRS DX report"
-    msg['From'] = 'EmailAddr@gmail.com'
+    msg["Subject"] = "APRS DX report"
+    msg["From"] = "EmailAddr@gmail.com"
 
     html = """\
         <html>
@@ -117,13 +113,15 @@ else:
                 <p>Report script by MM0NBW</p>
                 </body>
             </html>
-            """.format(rxdistance.to_html())
+            """.format(
+        rxdistance.to_html()
+    )
 
-    part1 = MIMEText(html, 'html')
+    part1 = MIMEText(html, "html")
     msg.attach(part1)
 
-#Send message via gmail SMTP
-    server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+    # Send message via gmail SMTP
+    server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
     server.login("EmailAddr@gmail.com", "app_password")
-    server.sendmail(msg['From'], emaillist , msg.as_string())
+    server.sendmail(msg["From"], emaillist, msg.as_string())
     server.quit()
