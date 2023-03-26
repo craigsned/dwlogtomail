@@ -1,68 +1,65 @@
-#Script to parse Direwolf APRS log, calculate distance to source
-#and output to email.
-#Written by Craig Snedden MM0NBW
-#Edit details where required for your setup
-#Set RX station QTH as entered in Direwolf.conf
-#Set path to Direwolf log
-#Set lat and long same as QTH to deal with stations with no location info
-#Set required info in send message via gmail
-#Set email recipients and email account from gmail - include app password set in gmail.
+# Script to parse Direwolf APRS log, calculate distance to source
+# and output to email.
+# Written by Craig Snedden MM0NBW
+# Edit details where required for your setup
+# Set RX station QTH as entered in Direwolf.conf
+# Set path to Direwolf log
+# Set lat and long same as QTH to deal with stations with no location info
+# Set required info in send message via gmail
+# Set email recipients and email account from gmail - include app password set in gmail.
 
 if __name__ == "__main__":
     import smtplib
-    from smtplib import SMTP
-    from email.message import EmailMessage
     from email.mime.text import MIMEText
-    from email.mime.application import MIMEApplication
     from email.mime.multipart import MIMEMultipart
     import sys
     import os.path
     import datetime
     import time
-    import csv
     import pandas as pd
     import geopy.distance
-
-#set date and time    
-today = datetime.date.today().strftime('%Y-%m-%d')
+# set date and time
+today = datetime.date.today().strftime("%Y-%m-%d")
 t = time.localtime()
 current_time = time.strftime("%H:%M:%S", t)
 
-#set RX station QTH
-qth = '56.055167, -2.709333'
+# set RX station QTH
+qth = "56.055167, -2.709333"
 
-#Set path and check file exists. If not exist exit
-#Set path - do not alter /'+today+' bit
-path = '/var/log/direwolf/'+today+'.log'
+# Set path and check file exists. If not exist exit
+# Set path - do not alter /'+today+' bit
+path = "/var/log/direwolf/" + today + ".log"
 
-if os.path.exists(path) == False:
+if not os.path.exists(path):
     sys.exit()
 else:
-
-#read direwolf log file
+    # read direwolf log file
     data = pd.read_csv(path)
+# Deal with log entries with no location
+# lat and long correspond with rx qth = 0 distance
+data["latitude"].fillna("56.055167", inplace=True)
+data["longitude"].fillna("-2.709333", inplace=True)
 
-#Deal with log entries with no location
-#lat and long correspond with rx qth = 0 distance
-data['latitude'].fillna("56.055167", inplace = True)
-data['longitude'].fillna("-2.709333", inplace = True)
+# Calculate distance in miles
+data.round({"latitude": 6, "longitude": 6})
 
-#Calculate distance in miles
-data.round({'latitude' : 6, 'longitude' : 6})
+
 def distancer(row):
     coords_1 = qth
-    coords_2 = (row['latitude'], row['longitude'])
+    coords_2 = (row["latitude"], row["longitude"])
     return geopy.distance.geodesic(coords_1, coords_2).mi
-data['distance'] = data.apply(distancer, axis=1)
-data['distance'] = data['distance'].astype(float).round(2)
-rxdata = (data.loc[:,["isotime","source","heard","comment","distance"]])
 
-#build email content
-recipients = ['EmailAddr@email.com','EmailAddr2@email.com']
-emaillist = [elem.strip().split(',') for elem in recipients]
+
+data["distance"] = data.apply(distancer, axis=1)
+data["distance"] = data["distance"].astype(float).round(2)
+rxdata = data.loc[:, ["isotime", "source", "heard", "comment", "distance"]]
+
+# build email content
+recipients = ["EmailAddr@email.com", "EmailAddr2@email.com"]
+emaillist = [elem.strip().split(",") for elem in recipients]
 msg = MIMEMultipart()
-msg['Subject'] = "APRS RX report"
-msg['From'] = 'EmailAddr@gmail.com'
+msg["Subject"] = "APRS RX report"
+msg["From"] = "EmailAddr@gmail.com"
 
 html = """\
 <html>
@@ -74,13 +71,16 @@ html = """\
     <p>Report script by MM0NBW</p>
     </body>
 </html>
-""".format(rxdata.to_html())
+""".format(
+    rxdata.to_html()
+)
 
-part1 = MIMEText(html, 'html')
+part1 = MIMEText(html, "html")
 msg.attach(part1)
 
-#Send message via gmail SMTP
-server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+# Send message via gmail SMTP
+server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
 server.login("EmailAddr@gmail.com", "app_password")
-server.sendmail(msg['From'], emaillist , msg.as_string())
+server.sendmail(msg["From"], emaillist, msg.as_string())
 server.quit()
+
