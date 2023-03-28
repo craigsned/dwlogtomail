@@ -46,31 +46,33 @@ Set APRS receiver location - QTH
 Set distance filter (for dxrx script)
 
 Set time period to filter log - last 'n' minutes - helps prevent email sending continuously after being triggered if no new stations heard over 'n' distance.
+(for dxrx script)
 
-Set path to Direwolf log file for today
+Set path to Direwolf log file
 
 Set path to mail log file (for dxrx script)
 
-Set path to Direwolf CBEACON text file
+Set path to Direwolf CBEACON text file (for dxrx script)
 
-  If Direwolf log file does not exist - exit
+If Direwolf log file does not exist - exit
 
-Read the Direwolf log file into a CSV Panda array
+Read the Direwolf log file into a Pandas array
 
 Check if the Direwolf CBEACON text file exists and if it is older than 'n' minutes delete it - prevent CBEACON from sending continuously once triggered.
 
-Deal with log entries with no location data by inserting receiver location (QTH) into lat and log fields in the Panda array
+Deal with log entries with no location data by inserting receiver location (QTH) into lat and log fields in the Pandas array
 
-Calculate the distance from receiver station (QTH) to source station and insert into new column in Panda array
+Calculate the distance from receiver station (QTH) to source station and insert into new column in Pandas array
 
-Filter the Panda array according to distance filter (for dxrx script)
+Filter the Pandas array according to distance filter (for dxrx script)
 
-  If filter results return no rows (i.e. nothing to report) exit (for dxrx script)
+If filter results return no rows (i.e. nothing to report) exit
 
 If filter has content;
 
 Check the last time an email was sent (for dxrx script) - if less than (time) quit - this ensures emails are not continuously sent as the dxrx script runs in CRON.
-The email log file must have an entry or this will cause the script to fail.  I set the entry for the log file using a separate script to clean up the file once per day - remove all entries, then append current timestamp
+The email log file must have an entry or this will cause the script to fail.  I set the entry for the log file using a separate script to clean up the file once
+per day - remove all entries, then append current timestamp
 
 Create the Direwolf CBEACON file and insert text.
 
@@ -81,8 +83,6 @@ Log current time in the email log
 Build email
 
 Send email
-
-
 
 
 
