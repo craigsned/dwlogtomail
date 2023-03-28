@@ -6,8 +6,14 @@
 # Set RX station QTH as entered in Direwolf.conf
 # Set path to Direwolf log
 # Set path to email text file
+# Set path to Direwolf TX text - A CBEACON in the DW config file should be
+# set to call another script to insert the contents of this text file if
+# triggered.  This script deletes the dw text file after n minutes to prevent
+# continued beaconing.
 # Set lat and long same as QTH to deal with stations with no location info
 # Set RX distance for filter
+# Set time period to filter - retrieve last n minutes - helps stop emails continuously 
+# being sent if triggered.
 # Set email throttle time in seconds
 # Set required info in send message via gmail
 # Set email recipients and email account from gmail - include app password set in gmail.
@@ -35,17 +41,34 @@ qth = "56.055167, -2.709333"
 # set distance filter
 dist = 75
 
+# set log filter last n minutes
+rinterval = 30
+
 # Set path according to your setup
+# main Direwolf log
 path = "/var/log/direwolf/" + today + ".log"
+
+# mail log for this script - helps reduce sending frequency
 maillogp = "/home/pi/Documents/emaillog.txt"
+
+# text file for Direwolf CBEACON content
+dwtext = "/home/pi/Documents/dwtext.txt
 
 # Check dw log file exists. If not exist exit
 if not os.path.exists(path):
     sys.exit()
 else:
+    #check if dwtext oler than n seconds - if true delete file
+    if os.path.exists(dwtext):
+    mod_time = os.path.getmtime(dwtext)
+    if time.time() - mod_time >5400:
+        os.remove(dwtext)
+        
+# read direwolf log file and set encoding
+# encoding added to deal with occasional odd characters
+# such as degree symbols.
+data = pd.read_csv((path), encoding = "ISO-8859-1")
 
-    # read direwolf log file
-    data = pd.read_csv(path)
 # Deal with log entries with no location
 # lat and long correspond with rx qth = 0 distance
 data["latitude"].fillna("56.055167", inplace=True)
@@ -54,15 +77,15 @@ data["longitude"].fillna("-2.709333", inplace=True)
 # Calculate distance in miles
 data.round({"latitude": 6, "longitude": 6})
 
-
 def distancer(row):
     coords_1 = qth
     coords_2 = (row["latitude"], row["longitude"])
     return geopy.distance.geodesic(coords_1, coords_2).mi
 
-
 data["distance"] = data.apply(distancer, axis=1)
 data["distance"] = data["distance"].astype(float).round(2)
+
+# print statements useful for checking
 # print selection from logfile to screen
 # print(data.loc[:,["isotime","source","heard"]])
 
@@ -71,12 +94,13 @@ rxdata = data.loc[:, ["isotime", "source", "heard", "comment", "distance"]]
 rxdistancef1 = rxdata[" distance"] > dist
 rxdistance = rxdata[rxdistancef1]
 
+# if nothing returned exit this script and send nothing
 if rxdistance.empty:
     sys.exit()
 else:
 
     # throttle send rate
-    # note that this will fail if the log file is blank
+    # note that this will fail if the mail log file is blank
     with open(maillogp, "r") as f:
         lines = f.read().splitlines()
 last_line = lines[-1]
@@ -84,7 +108,8 @@ t1 = datetime.datetime.strptime(sttime, "%Y%m%d_%H:%M:%S")
 t2 = datetime.datetime.strptime(last_line, "%Y%m%d_%H:%M:%S")
 delta = t1 - t2
 
-# set resend time in seconds - 1800 = 30 mins
+# set resend time in seconds - 1800 = 30 mins - if less than exit and
+# send nothing
 if delta.total_seconds() < 1800:
     sys.exit
 else:
@@ -93,6 +118,16 @@ else:
     log = maillogp
     with open(log, "a") as logfile:
         logfile.write(sttime + "\n")
+
+# write the DW text file for CBEACON content
+if not os.path.exists(dwtext):
+    with open(dwtext, 'w') as fp:
+    # edit next line between brackets as required
+    # must conform to APRS packet address standard
+    fp.write(':BLN1     :Possible dx +100 miles RX')
+
+else:
+    
     # build email content - edit as you wish, adding callsign etc
     recipients = ["email@email.com"]
     emaillist = [elem.strip().split(",") for elem in recipients]
