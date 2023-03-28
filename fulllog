@@ -34,7 +34,8 @@ if not os.path.exists(path):
     sys.exit()
 else:
     # read direwolf log file
-    data = pd.read_csv(path)
+    data = pd.read_csv((path), encoding = "ISO-8859-1")
+    
 # Deal with log entries with no location
 # lat and long correspond with rx qth = 0 distance
 data["latitude"].fillna("56.055167", inplace=True)
