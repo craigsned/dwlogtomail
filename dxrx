@@ -3,7 +3,7 @@
 # Send rate is throttled by checking a text file.
 # Written by Craig Snedden MM0NBW
 # Edit details where required for your setup
-# Set RX station QTH as entered in Direwolf.conf
+# Set RX station lat and long for QTH as entered in Direwolf.conf
 # Set path to Direwolf log
 # Set path to email text file
 # Set path to Direwolf TX text - A CBEACON in the DW config file should be
@@ -25,138 +25,185 @@ if __name__ == "__main__":
     import sys
     import os.path
     import datetime
+    from datetime import timedelta
     import time
     import pandas as pd
     import geopy.distance
-# set date and time
-today = datetime.date.today().strftime("%Y-%m-%d")
+    import numpy
+    import math
+
+# set date and time    
+today = datetime.date.today().strftime('%Y-%m-%d')
 t = time.localtime()
 current_time = time.strftime("%H:%M:%S", t)
 ts = time.time()
-sttime = datetime.datetime.fromtimestamp(ts).strftime("%Y%m%d_%H:%M:%S")
+sttime = datetime.datetime.fromtimestamp(ts).strftime('%Y%m%d_%H:%M:%S')
+sttime2 = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 # set RX station QTH
-qth = "56.055167, -2.709333"
+# set long1 and lat 1 for your station QTH the same as you have in Direwolf.conf
+long1 = float(-2.709333)
+lat1 = float(56.055167)
 
-# set distance filter
-dist = 75
+#converts long1 and lat1 to string and sets QTH value
+long2 = str(long1)
+lat2 = str(lat1)
+qth = lat2 + ", " + long2
 
-# set log filter last n minutes
+# set filter distance in miles
+dist = 90
+
+# set time interval for reporting in minutes
 rinterval = 30
 
-# Set path according to your setup
-# main Direwolf log
-path = "/var/log/direwolf/" + today + ".log"
+# Set path to log files and Dirwolf.text for CBEACON text content
+path = '/var/log/direwolf/'+today+'.log'
+maillogp = '/home/pi/Documents/emaillog.txt'
+dwtext = '/home/pi/Documents/dwtext.txt'
 
-# mail log for this script - helps reduce sending frequency
-maillogp = "/home/pi/Documents/emaillog.txt"
-
-# text file for Direwolf CBEACON content
-dwtext = "/home/pi/Documents/dwtext.txt
-
-# Check dw log file exists. If not exist exit
+# Exit if log file not exist
 if not os.path.exists(path):
+    print("No DW Log File")
     sys.exit()
 else:
-    #check if dwtext oler than n seconds - if true delete file
+    # check if dwtext file is older than 90 mins
+    # if older than 90 mins -5400 seconds- delete to ensure CBEACON text is not continuously TX
+
     if os.path.exists(dwtext):
-    mod_time = os.path.getmtime(dwtext)
-    if time.time() - mod_time >5400:
-        os.remove(dwtext)
-        
-# read direwolf log file and set encoding
-# encoding added to deal with occasional odd characters
-# such as degree symbols.
+        mod_time = os.path.getmtime(dwtext)
+        if time.time() - mod_time > 5400:
+            os.remove(dwtext)
+
+# read direwolf log file
 data = pd.read_csv((path), encoding = "ISO-8859-1")
 
 # Deal with log entries with no location
 # lat and long correspond with rx qth = 0 distance
-data["latitude"].fillna("56.055167", inplace=True)
-data["longitude"].fillna("-2.709333", inplace=True)
+data['latitude'].fillna(lat2, inplace = True)
+data['longitude'].fillna(long2, inplace = True)
+
+# deal with latitudes which are greater than +-90 otherwise an error will throw
+data['latitude'] = pd.to_numeric(data['latitude'], errors='coerce')
+data['longitude'] = pd.to_numeric(data['longitude'], errors='coerce')
+
+def wrap_latitude(latitude):
+    while latitude > 90:
+        latitude -= 180
+    while latitude < -90:
+        latitude += 180
+    return latitude
+
+data['latitude'] = data['latitude'].apply(lambda x:wrap_latitude(x) if abs(x) >90 else x)
 
 # Calculate distance in miles
-data.round({"latitude": 6, "longitude": 6})
+data.round({'latitude' : 6, 'longitude' : 6})
+
+data['latitude'] = data['latitude'].astype(str)
+data['longitude'] = data['longitude'].astype(str)
 
 def distancer(row):
     coords_1 = qth
-    coords_2 = (row["latitude"], row["longitude"])
+    coords_2 = (row['latitude'], row['longitude'])
     return geopy.distance.geodesic(coords_1, coords_2).mi
+    
+data['distance'] = data.apply(distancer, axis=1)
+data['distance'] = data['distance'].astype(float).round(2)
 
-data["distance"] = data.apply(distancer, axis=1)
-data["distance"] = data["distance"].astype(float).round(2)
+data['timenow'] = sttime2
+data['timenow'] = pd.to_datetime(data['timenow'], format = '%Y-%m-%dT%H:%M:%SZ')
+data['isotime'] = pd.to_datetime(data['isotime'], format = '%Y-%m-%dT%H:%M:%SZ')
+data['timediff'] = data['timenow'] - data['isotime']
+data['diffmins'] = data['timediff'].dt.total_seconds()/60
+data['timefilt'] = data['diffmins'] < rinterval
 
-# print statements useful for checking
-# print selection from logfile to screen
-# print(data.loc[:,["isotime","source","heard"]])
+# determine bearing from qth to rx stn
+def get_bearing(row):
+    dLong = numpy.float16(row['longitude']) - long1;
+    x = math.cos(math.radians(numpy.float16(row['latitude']))) * math.sin(math.radians(dLong));
+    y = math.cos(math.radians(lat1))*math.sin(math.radians(numpy.float16(row['latitude']))) - math.sin(math.radians(lat1))*math.cos(math.radians(numpy.float16(row['latitude']))*math.cos(math.radians(dLong)));
+    brng = numpy.rad2deg(math.atan2(x, y));
+    if brng < 0: brng+= 360
+    return brng
+
+
+data['bearing'] = data.apply(get_bearing, axis=1)
+data['bearing'] = data['bearing'].astype(int)#.round(0)
+data['bcalc'] = data['bearing']
+data['bcalc'] = data['bcalc'].astype(int).round(0)
+
+# determine compass direction from qth to tx stn
+def degCard(bearing):
+    dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']
+    ix = round(bearing / (360. / len(dirs)))
+    ix = int(ix) % len(dirs)
+    return dirs[ix]
+
+
+# data['direction'] = data.apply(direction, axis=1)
+data['direction'] = data['bcalc'].apply(degCard)
 
 # set content for email filtered by distance and trigger email
-rxdata = data.loc[:, ["isotime", "source", "heard", "comment", "distance"]]
-rxdistancef1 = rxdata[" distance"] > dist
-rxdistance = rxdata[rxdistancef1]
+rxdata = (data.loc[:,["isotime","source","heard","comment","distance", "timenow", "diffmins", "timefilt", "bearing", "direction"]])
+rxdistancef1 = rxdata[(rxdata.distance > dist) & (rxdata.timefilt == True)]
+rxdistance = (rxdistancef1.loc[:,["isotime","source","heard","comment","distance","bearing","direction"]])
 
-# if nothing returned exit this script and send nothing
 if rxdistance.empty:
     sys.exit()
 else:
 
     # throttle send rate
-    # note that this will fail if the mail log file is blank
-    with open(maillogp, "r") as f:
+    with open(maillogp, 'r') as f:
         lines = f.read().splitlines()
 last_line = lines[-1]
-t1 = datetime.datetime.strptime(sttime, "%Y%m%d_%H:%M:%S")
-t2 = datetime.datetime.strptime(last_line, "%Y%m%d_%H:%M:%S")
+t1 = datetime.datetime.strptime(sttime, '%Y%m%d_%H:%M:%S')
+t2 = datetime.datetime.strptime(last_line, '%Y%m%d_%H:%M:%S')
 delta = t1 - t2
 
-# set resend time in seconds - 1800 = 30 mins - if less than exit and
-# send nothing
+# set resend time in seconds - 1800 = 30 mins. If time is not exceeded do not process further and quit
 if delta.total_seconds() < 1800:
-    sys.exit
+    # print("rate throttled")
+    sys.exit()
 else:
-
-    # log email sent
+        
+    # log email timestamp sttime
     log = maillogp
-    with open(log, "a") as logfile:
-        logfile.write(sttime + "\n")
+    with open(log, 'a') as logfile:
+        logfile.write(sttime + '\n')
 
-# write the DW text file for CBEACON content
+# create DW text file for CBEACON- edit text within fp.write after :BLN as required
 if not os.path.exists(dwtext):
     with open(dwtext, 'w') as fp:
-    # edit next line between brackets as required
-    # must conform to APRS packet address standard
-    fp.write(':BLN1     :Possible dx +100 miles RX')
+        fp.write(':BLN1  :Possible 2 metre DX. <call> RX +100 miles')
+else: 
 
-else:
-    
-    # build email content - edit as you wish, adding callsign etc
-    recipients = ["email@email.com"]
-    emaillist = [elem.strip().split(",") for elem in recipients]
+    # build email. Edit recipients, subject, from and body text as required
+    recipients = ['something_mailbox@somedomain', 'someothermailbox@anotherdomain']
+    emaillist = [elem.strip().split(',') for elem in recipients]
     msg = MIMEMultipart()
-    msg["Subject"] = "APRS DX report"
-    msg["From"] = "EmailAddr@gmail.com"
+    msg['Subject'] = "APRS DX report"
+    msg['From'] = 'something_mailbox@gmail.com'
 
     html = """\
         <html>
             <head></head>
-                <body>DX stations heard by ... since 00:00 today.
-                <br>Distance > 75 miles</br>
-                <p>Note that distance shown is distance from source station, not heard station.<br>
-                Intermediate relays do not append location information to allow distance calculation.</p>
+                <body>DX stations heard by <your call> since 00:00 today.
+                <br>Distance > 90 miles</br>
+                
+                </p>
+                <p>isotime is UTC</p>
                 <p>
                     {0}
                 </p>
-                <p>Report script by MM0NBW</p>
+                <p>dwrxdx report script by MM0NBW</p>
                 </body>
             </html>
-            """.format(
-        rxdistance.to_html()
-    )
+            """.format(rxdistance.to_html())
 
-    part1 = MIMEText(html, "html")
+    part1 = MIMEText(html, 'html')
     msg.attach(part1)
 
-    # Send message via gmail SMTP
-    server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
-    server.login("EmailAddr@gmail.com", "app_password")
-    server.sendmail(msg["From"], emaillist, msg.as_string())
+    # Send message via gmail SMTP.  Update with your smtp server and credentials
+    server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+    server.login("something_mailbox@gmail.com", "your_pass")
+    server.sendmail(msg['From'], emaillist , msg.as_string())
     server.quit()
