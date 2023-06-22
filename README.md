@@ -6,30 +6,21 @@ This is my first foray into any type of scripting.  There may be issues in the w
 
 Description of the files;
 
-fulllog calculates distances to the source station, append distance and output to html formatted email.
+fulllog calculates distance and bearing to the source station, append distance and bearing as compass cardinal and outputs to html formatted email.  It is intended to run once a day to email the Direwolf log file in an easier to read format.
 
-dxrx is based on fullog, but additionally filters the result by distance and sends the filter results to email.
-The idea behind dxrx is to have a form of alerting when there is a propagation "lift" on amateur VHF band.
+dxrx is based on fullog, but additionally filters the result by distance (I set greater than 90 miles) and time received (I set within the last 30 minutes) and sends the filtered results to email.  The idea behind dxrx is to have a form of alerting when there is a propagation "lift" on amateur VHF band.  As such, if the filter returns values dxrx also creates a text file, the content of which is transmitted by the radio as an APRS Bulletin (BLN) message.  This is picked up using a CBEACON in Direwolf.conf running every 15 minutes.  If the DW Text file does not exist, the CBEACON fails, but this causes no issues to Direwolf and can be safely ignored.  Once triggered by CBEACON the bulletin message stops after 90 minutes.  This is achieved by the script deleting the DW Text file.
 
-Both files are best run as CRON jobs.  I set dxrx file to run every 5 minutes.  To prevent emails being sent every 5 minutes once triggered, the script writes
-a timestamp to a text file as each email is sent.  The script then reads the last time from the text file and does not send another email if the time threshold
-has not been reached (I set every 30 minutes).
+Both files are best run automatically using CRON.  I set dxrx file to run every 10 minutes.  To prevent emails being sent every 10 minutes once triggered, the script writes a timestamp to a text file as each email is sent.  The script then reads the last time from the text file and does not send another email if the time threshold has not been reached (I set every 30 minutes).  The content of the DW Text file (set in the code) must conform to APRS message packet format - See APRS 101
 
 Email is set up to run through a gmail account using an app password.  See - https://support.google.com/mail/answer/185833?hl=en-GB for further information on this.
 email could easily be set up using other providers.
 
-I added a section in dxrx to create a text file with content to be sent as a Direwolf CBEACON if the script is fully triggered.  
-The content of the file must conform to APRS message packet format - See APRS 101
-
-To prevent the CBEACON from continuing to be TX for too long, I set a section in the dxrx script to check if the text file exists and if it does, is it older than
-'n' minutes (suggest 60 - 90 max)?  If older than the age set, then delete the file.  Lack of the text file will cause the CBEACON to fail in Direwolf, but this has
-no negative effect on Direwolf, but will appear in the DW rolling console.
 
 Pre-requisites.
 
 Email account set up to send output.
 
-Direwolf logging enabled - either command line or in direwolf.conf
+Direwolf logging enabled (daily log, not rolling) - either command line or in direwolf.conf
 
 A text file, containing at least single timestamp in the required format to prevent crash of dxrx on first run.  (I need to code adding a new line if the
 text file is empty - currently I'm fixing this with a separate code that runs once a day at midnight to clear the file (to prevent creating a large file)
@@ -60,6 +51,8 @@ Read the Direwolf log file into a Pandas array
 
 Check if the Direwolf CBEACON text file exists and if it is older than 'n' minutes delete it - prevent CBEACON from sending continuously once triggered.
 
+Deal with instances where latitude is greater than 90 or less than -90 (otherwise this throws an error)
+
 Deal with log entries with no location data by inserting receiver location (QTH) into lat and log fields in the Pandas array
 
 Calculate the distance from receiver station (QTH) to source station and insert into new column in Pandas array
@@ -74,7 +67,7 @@ Check the last time an email was sent (for dxrx script) - if less than (time) qu
 The email log file must have an entry or this will cause the script to fail.  I set the entry for the log file using a separate script to clean up the file once
 per day - remove all entries, then append current timestamp
 
-Create the Direwolf CBEACON file and insert text.
+Create the Direwolf CBEACON file (DW Text) and insert text.
 
 Set the content for email from relevant fields in the Panda array
 
