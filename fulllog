@@ -2,7 +2,7 @@
 # and output to email.
 # Written by Craig Snedden MM0NBW
 # Edit details where required for your setup
-# Set RX station QTH as entered in Direwolf.conf
+# Set RX station latitude (lat1) and longitude (long1) for QTH as entered in Direwolf.conf
 # Set path to Direwolf log
 # Set lat and long same as QTH to deal with stations with no location info
 # Set required info in send message via gmail
@@ -13,75 +13,136 @@ if __name__ == "__main__":
     from email.mime.text import MIMEText
     from email.mime.multipart import MIMEMultipart
     import sys
-    import os.path
     import datetime
     import time
     import pandas as pd
     import geopy.distance
-# set date and time
-today = datetime.date.today().strftime("%Y-%m-%d")
+    import numpy
+    import math
+    import os.path
+
+    
+#set date and time    
+today = datetime.date.today().strftime('%Y-%m-%d')
 t = time.localtime()
 current_time = time.strftime("%H:%M:%S", t)
 
-# set RX station QTH
-qth = "56.055167, -2.709333"
+#set RX station QTH
+#set these values long1 and lat1 as necessary
+long1 = float(-2.709333)
+lat1 = float(56.055167)
 
-# Set path and check file exists. If not exist exit
-# Set path - do not alter /'+today+' bit
-path = "/var/log/direwolf/" + today + ".log"
+#converts long1 and lat1 to string and sets QTH value
+long2 = str(long1)
+lat2 = str(lat1)
+qth = lat2 + ", " + long2
+
+#Check file exists
+#Set path to Direwolf log
+path = '/var/log/direwolf/'+today+'.log'
 
 if not os.path.exists(path):
+    print("No DW Log File for today's log report")
     sys.exit()
-else:
-    # read direwolf log file
-    data = pd.read_csv((path), encoding = "ISO-8859-1")
-    
-# Deal with log entries with no location
-# lat and long correspond with rx qth = 0 distance
-data["latitude"].fillna("56.055167", inplace=True)
-data["longitude"].fillna("-2.709333", inplace=True)
 
-# Calculate distance in miles
-data.round({"latitude": 6, "longitude": 6})
+#read direwolf log file
+data = pd.read_csv((path), encoding = "ISO-8859-1")
 
+#Deal with log entries with no location
+#lat and long correspond with rx qth = 0 distance
+data['latitude'].fillna(lat2, inplace = True)
+data['longitude'].fillna(long2, inplace = True)
+
+#normalize any lat out of +- 90 degrees
+data['latitude'] = pd.to_numeric(data['latitude'], errors='coerce')
+data['longitude'] = pd.to_numeric(data['longitude'], errors='coerce')
+
+def wrap_latitude(latitude):
+    while latitude > 90:
+        latitude -= 180
+    while latitude < -90:
+        latitude += 180
+    return latitude
+
+data['latitude'] = data['latitude'].apply(lambda x:wrap_latitude(x) if abs(x) >90 else x)
+
+#Calculate distance in miles
+data.round({'latitude' : 6, 'longitude' : 6})
+
+data['latitude'] = data['latitude'].astype(str)
+data['longitude'] = data['longitude'].astype(str)
 
 def distancer(row):
     coords_1 = qth
-    coords_2 = (row["latitude"], row["longitude"])
+    coords_2 = (row['latitude'], row['longitude'])
     return geopy.distance.geodesic(coords_1, coords_2).mi
+    
+data['distance'] = data.apply(distancer, axis=1)
+data['distance'] = data['distance'].astype(float).round(2)
+
+def get_bearing(row):
+    dLong = numpy.float16(row['longitude']) - long1;
+    x = math.cos(math.radians(numpy.float16(row['latitude']))) * math.sin(math.radians(dLong));
+    y = math.cos(math.radians(lat1))*math.sin(math.radians(numpy.float16(row['latitude']))) - math.sin(math.radians(lat1))*math.cos(math.radians(numpy.float16(row['latitude']))*math.cos(math.radians(dLong)));
+    brng = numpy.rad2deg(math.atan2(x, y));
+    if brng < 0: brng+= 360
+    return brng
 
 
-data["distance"] = data.apply(distancer, axis=1)
-data["distance"] = data["distance"].astype(float).round(2)
-rxdata = data.loc[:, ["isotime", "source", "heard", "comment", "distance"]]
+data['bearing'] = data.apply(get_bearing, axis=1)
+data['bearing'] = data['bearing'].astype(int)#.round(0)
+data['bcalc'] = data['bearing']
+data['bcalc'] = data['bcalc'].astype(int).round(0)
 
-# build email content
-recipients = ["EmailAddr@email.com", "EmailAddr2@email.com"]
-emaillist = [elem.strip().split(",") for elem in recipients]
-msg = MIMEMultipart()
-msg["Subject"] = "APRS RX report"
-msg["From"] = "EmailAddr@gmail.com"
 
-html = """\
-<html>
-    <head></head>
-    <body>Stations heard by (some station) since 00:00 today
-    <p>
-        {0}
-    </p>
-    <p>Report script by MM0NBW</p>
-    </body>
-</html>
-""".format(
-    rxdata.to_html()
-)
+def degCard(bearing):
+    dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']
+    ix = (bearing / (360. / len(dirs)))
+    ix = int(ix) % len(dirs)
+    return dirs[ix]
 
-part1 = MIMEText(html, "html")
-msg.attach(part1)
+#apply cardinal direction
+data['direction'] = data['bcalc'].apply(degCard)
 
-# Send message via gmail SMTP
-server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
-server.login("EmailAddr@gmail.com", "app_password")
-server.sendmail(msg["From"], emaillist, msg.as_string())
-server.quit()
 
+#set content for email filtered by distance and trigger email
+rxdata = (data.loc[:,["isotime","source","heard","comment","distance","bearing","direction"]])
+rxdistancef1 = rxdata['distance']>0
+rxdistance = rxdata[rxdistancef1]
+
+if rxdistance.empty:
+    sys.exit()
+
+else:
+    
+#build email
+    recipients = ['some_email@somedomain.com', 'another_email@someotherdomain.com']
+    emaillist = [elem.strip().split(',') for elem in recipients]
+    msg = MIMEMultipart()
+    msg['Subject'] = "APRS daily report"
+    msg['From'] = 'some_email@somedomain.com'
+
+    html = """\
+    <html>
+        <head></head>
+        <body>Stations heard by <callsign> since 00:00 today.
+        <br></br>
+        </p>
+        <p>Note that distance shown is distance from source station, not heard station.<br>
+        Intermediate relays do not append location information to allow distance calculation.</p>
+        <p>
+            {0}
+        </p>
+        <p>dwrxdist report script by MM0NBW</p>
+        </body>
+    </html>
+    """.format(rxdistance.to_html())
+
+    part1 = MIMEText(html, 'html')
+    msg.attach(part1)
+
+#Send message via gmail SMTP - update with your SMPT server and credentials as required
+    server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+    server.login("your_account@gmail.com", "your_pass")
+    server.sendmail(msg['From'], emaillist , msg.as_string())
+    server.quit()
