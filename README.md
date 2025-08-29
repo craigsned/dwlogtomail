@@ -8,9 +8,9 @@ Description of the files;
 
 fulllog calculates distance and bearing to the source station, append distance and bearing as compass cardinal and outputs to html formatted email.  It is intended to run once a day to email the Direwolf log file in an easier to read format.
 
-dxrx is based on fullog, but additionally filters the result by distance (I set greater than 90 miles) and time received (I set within the last 30 minutes) and sends the filtered results to email.  The idea behind dxrx is to have a form of alerting when there is a propagation "lift" on amateur VHF band.  As such, if the filter returns values dxrx also creates a text file, the content of which is transmitted by the radio as an APRS Bulletin (BLN) message.  This is picked up using a CBEACON in Direwolf.conf running every 15 minutes.  If the DW Text file does not exist, the CBEACON fails, but this causes no issues to Direwolf and can be safely ignored.  Once triggered by CBEACON the bulletin message stops after 90 minutes.  This is achieved by the script deleting the DW Text file.
+dxalert-01.py ilters the result by distance (I set greater than 90 miles) and time received (I set within the last 30 minutes) and sends the filtered results to email.  The idea behind dxalert=01 is to have a form of alerting when there is a propagation "lift" on amateur VHF band.  As such, if the filter returns values dxalert-01 also creates a text file, the content of which is transmitted by the radio as an APRS Bulletin (BLN) message.  This is picked up using a CBEACON in Direwolf.conf running every 15 minutes.  If the DW Text file does not exist, the CBEACON fails, but this causes no issues to Direwolf and can be safely ignored.  Once triggered by CBEACON the bulletin message stops after 90 minutes.  This is achieved by the script deleting the DW Text file.
 
-Both files are best run automatically using CRON.  I set dxrx file to run every 10 minutes.  To prevent emails being sent every 10 minutes once triggered, the script writes a timestamp to a text file as each email is sent.  The script then reads the last time from the text file and does not send another email if the time threshold has not been reached (I set every 30 minutes).  The content of the DW Text file (set in the code) must conform to APRS message packet format - See APRS 101
+Both files are best run automatically using CRON.  I set dxalert-01 file to run every 10 minutes.  To prevent emails being sent every 10 minutes once triggered, the script writes a timestamp to a text file as each email is sent.  The script then reads the last time from the text file and does not send another email if the time threshold has not been reached (I set every 30 minutes).  The content of the DW Text file (set in the code) must conform to APRS message packet format - See APRS 101
 
 Email is set up to run through a gmail account using an app password.  See - https://support.google.com/mail/answer/185833?hl=en-GB for further information on this.
 email could easily be set up using other providers.
@@ -22,12 +22,9 @@ Email account set up to send output.
 
 Direwolf logging enabled (daily log, not rolling) - either command line or in direwolf.conf
 
-A text file, containing at least single timestamp in the required format to prevent crash of dxrx on first run.  (I need to code adding a new line if the
-text file is empty - currently I'm fixing this with a separate code that runs once a day at midnight to clear the file (to prevent creating a large file)
-and writing a new timestamp).
+Set your own parameters in the script for QTH, email addresses etc.  QTH must be the same as the Direwolf.conf entry to ensure accuracy.
 
-Set QTH to be the same as the Direwolf.conf entry
-
+------
 Logic Flow
 
 Set date and time - required to find today's log file
