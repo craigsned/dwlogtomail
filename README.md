@@ -8,12 +8,33 @@ Description of the files;
 
 fulllog calculates distance and bearing to the source station, append distance and bearing as compass cardinal and outputs to html formatted email.  It is intended to run once a day to email the Direwolf log file in an easier to read format.
 
-dxalert-01.py ilters the result by distance (I set greater than 90 miles) and time received (I set within the last 30 minutes) and sends the filtered results to email.  The idea behind dxalert=01 is to have a form of alerting when there is a propagation "lift" on amateur VHF band.  As such, if the filter returns values dxalert-01 also creates a text file, the content of which is transmitted by the radio as an APRS Bulletin (BLN) message.  This is picked up using a CBEACON in Direwolf.conf running every 15 minutes.  If the DW Text file does not exist, the CBEACON fails, but this causes no issues to Direwolf and can be safely ignored.  Once triggered by CBEACON the bulletin message stops after 90 minutes.  This is achieved by the script deleting the DW Text file.
+📡 APRS DX Alert Script — Summary
+This Python script monitors your Direwolf APRS log file for long-distance packet receptions and automatically sends an email alert when stations are heard beyond a specified range.
+🧭 Core Functionality:
+- Reads the daily Direwolf log file from /var/log/direwolf/YYYY-MM-DD.log
+- Extracts latitude and longitude from each packet (or substitutes your RX QTH if missing)
+- Calculates distance and bearing from your RX station using geodesic math
+- Filters for stations heard within the last 30 minutes and more than 90 miles away
+- Determines compass direction (e.g., NE, SSW) from your QTH to the remote station
+- Formats the filtered data into an HTML table for email presentation
+- Throttles email alerts to avoid sending more than one every 30 minutes
+- Writes a short DX message to a local file (dwtext.txt) if a new alert is triggered
+- Sends an email via SMTP to your configured recipients
+  
+🛡 Reliability Features:
+- Automatically deletes stale dwtext.txt files older than 90 minutes
+- Skips processing if the log file doesn’t exist
+- Skips sending if no qualifying DX entries are found
+- Uses timezone-aware datetime handling to avoid timestamp errors
+  
+📤 Email Output:
+- Subject: xxx APRS DX report
+- Includes a link to your dashboard if you have one.
+- Lists all stations heard today that exceed the distance threshold
+- Notes that timestamps are in UTC
 
-Both files are best run automatically using CRON.  I set dxalert-01 file to run every 10 minutes.  To prevent emails being sent every 10 minutes once triggered, the script writes a timestamp to a text file as each email is sent.  The script then reads the last time from the text file and does not send another email if the time threshold has not been reached (I set every 30 minutes).  The content of the DW Text file (set in the code) must conform to APRS message packet format - See APRS 101
 
-Email is set up to run through a gmail account using an app password.  See - https://support.google.com/mail/answer/185833?hl=en-GB for further information on this.
-email could easily be set up using other providers.
+Email is set up to run through a gmail account using an app password.  See - https://support.google.com/mail/answer/185833?hl=en-GB for further information on this.  Email could easily be set up using other providers.
 
 
 Pre-requisites.
@@ -60,7 +81,7 @@ If filter results return no rows (i.e. nothing to report) exit
 
 If filter has content;
 
-Check the last time an email was sent (for dxrx script) - if less than (time) quit - this ensures emails are not continuously sent as the dxrx script runs in CRON.
+Check the last time an email was sent (for dxalert script) - if less than (time) quit - this ensures emails are not continuously sent as the dxalert script runs in CRON.
 The email log file must have an entry or this will cause the script to fail.  I set the entry for the log file using a separate script to clean up the file once
 per day - remove all entries, then append current timestamp
 
