@@ -18,7 +18,7 @@ This Python script monitors your Direwolf APRS log file for long-distance packet
 - Determines compass direction (e.g., NE, SSW) from your QTH to the remote station
 - Formats the filtered data into an HTML table for email presentation
 - Throttles email alerts to avoid sending more than one every 30 minutes
-- Writes a short DX message to a local file (dwtext.txt) if a new alert is triggered
+- Writes a short message to a local file (dwtext.txt) if a new alert is triggered.  This is used by Direwolf CBEACON to TX over RF and/or APRSIS (see Direwolf manual for further info and APRS101 on configuration of BLN messages)
 - Sends an email via SMTP to your configured recipients
   
 🛡 Reliability Features:
